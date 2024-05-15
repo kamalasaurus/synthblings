@@ -6,36 +6,146 @@
 require 'csv'
 require 'securerandom'
 
-def hashify(snps)
-  CSV.read(snps, headers: true, header_converters: :symbol, col_sep: "\t")
-    .map { |row| [row[:rsid], row[:genotype]] }
-    .to_h
+# 45 - 250 million appears to be the size range of human
+# chromosomes
+CHROMOSOME_LENGTHS = {
+  '1'=> 248_956_422,
+  '2'=> 242_193_529,
+  '3'=> 198_295_559,
+  '4'=> 190_214_555,
+  '5'=> 181_538_259,
+  '6'=> 170_805_979,
+  '7'=> 159_345_973,
+  '8'=> 145_138_636,
+  '9'=> 138_394_717,
+  '10' => 133_797_422,
+  '11' => 135_086_622,
+  '12' => 133_275_309,
+  '13' => 114_364_328,
+  '14' => 107_043_718,
+  '15' => 101_991_189,
+  '16' => 90_338_345,
+  '17' => 83_257_441,
+  '18' => 80_373_285,
+  '19' => 58_617_616,
+  '20' => 64_444_167, # larger than 19!  apparently more recombination sites
+  '21' => 46_709_983,
+  '22' => 50_818_468, # larger than 21!
+  'X' => 156_040_895, # about the size of 7
+  'Y' => 57_227_415,  # about the size of 19
+}
+
+def flip(state = rand(0..1)) # flip once to initialize chromatid
+  state == 0 ? 1 : 0
 end
 
-# if there is a non present morph -- randomly decide 1/2 if the morph is retained
-# or if it's discarded -- this should diminish accumulated variants.
-def swpsnp(p1, p2)
-  p1.merge(p2) do |k, v1, v2|
-    if v1 && v2
-      v1[rand(0..1)] + v2[rand(0..1)]
-    elsif v1 && !v2
-      if rand(0..1) == 0 then v1 else next end
-    elsif !v1 && v2
-      if rand(0..1) == 0 then v2 else next end
-    elsif k == '.'
-      next
+def daughter?
+  flip != 1
+end
+
+# At least one chiasma is necessary for homologous segregation
+# not necessary that genetic material is swapped but for variety's
+# sake, let's assume it is.  Discrete chiasma events pull snps from
+# either side for some stretch.  This only really works with phased
+# sequencing.  Assume phased is the general case.
+
+# Generally 2-4  chiasma for humans, which guarantees linkage
+# disequilibrium.  Swap to the opposite chromosome each time.
+# Need chromosome position
+
+# This should be normally distributed, not uniformly distributed.
+# can achieve by summing and normalizing uniform randoms, but not
+# sure if it's worth it.  Probably also conditional by descent.
+def crossovers(length)
+  # zero means no swap over between parental chromosomes
+  Array.new(rand(0..4)).map { rand(length) }
+end
+
+readsnp = proc do |path = ''|
+  CSV.read(path, headers: true, header_converters: :symbol, col_sep: "\t")
+    .map { |row| row.to_h }
+end
+
+chiasmata = proc do |snps = []|
+  snps
+    .group_by { |snp| snp[:chromosome] }
+    .map do |chromosome, snps|
+      initial_chromatid = flip
+      segments = crossovers(CHROMOSOME_LENGTHS[chromosome])
+      snps.map do |snp|
+        # flip as many times as crossover events from initial chromatid
+        chromatid = segments.select { |pos| snp[:position].to_i > pos }
+          .reduce(initial_chromatid) { |input| flip(input) }
+        allele = snp[:genotype][chromatid]
+        snp.merge({allele: allele})
+      end
+    end.flatten
+end
+
+gender = proc do |daughter = true, snps = []|
+  daughter ?
+    snps.select { |snp| snp[:chromosome] != 'Y' } :
+    snps
+end
+
+hashify = proc do |snps = []|
+  snps.map { |snp| [snp[:rsid], snp] }.to_h
+end
+
+# uncertain if the disjoints should send both -- since
+# it's unclear what the reference seq is. For this to work
+# correctly, the opposite needs to pull from the reference
+# seq Hg38 chromosome and position
+swpsnp = proc do |p1 = {}, p2 = {}|
+  k1 = p1.keys.to_set
+  k2 = p2.keys.to_set
+
+  overlap = k1 & k2
+  disjoint = k1 ^ k2
+
+  sorted = p1.slice(*overlap)
+    .merge(p2.slice(*overlap)) do |k, v1, v2|
+      {
+        rsid: v1[:rsid],
+        chromosome: v1[:chromosome],
+        position: v1[:position],
+        genotype: v1[:allele] + v2[:allele]
+      }
     end
-  end.compact
+
+    p1.slice(*disjoint) # compare with ref, reject if same
+    p2.slice(*disjoint) # if different, pair w/ ref as genotype
+
+  #(overlapped_snps | unique_snps).to_h
 end
 
-parent1 = hashify(ARGV[0])
-parent2 = hashify(ARGV[1])
-
-synthbling = swpsnp(parent1, parent2)
-
-CSV.open("./synthbling_#{SecureRandom.uuid}", 'w', col_sep: "\t") do |csv|
-  csv << ['rsid', 'genotype']
-  synthbling.each do |row|
-    csv << row
+writebling = proc do |synthbling|
+  CSV.open("./synthbling-#{SecureRandom.uuid}", 'w', col_sep: "\t") do |csv|
+    csv << ['rsid', 'chromosome', 'position', 'genotype']
+    synthbling.each do |row|
+      csv << row
+    end
   end
 end
+
+# def swpsnp(p1, p2)
+#   p1.merge(p2) do |k, v1, v2|
+#     if v1 && v2
+#       v1[flip] + v2[flip]
+#     elsif v1 && !v2
+#       if rand(0..1) == 0 then v1 else next end
+#     elsif !v1 && v2
+#       if rand(0..1) == 0 then v2 else next end
+#     elsif k == '.'
+#       next
+#     end
+#   end.compact
+# end
+
+[ARGV[0], ARGV[1]]
+  .map(&readsnp)
+  .map(&chiasmata)
+  .map(&gender.curry(2).call(daughter?))
+  .map(&hashify)
+  .each_slice(2).map(&swpsnp)
+  .collect(&writebling)
