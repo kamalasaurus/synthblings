@@ -1,0 +1,37 @@
+#!/usr/bin/ruby
+
+# This script will create synthetic siblings from a formatted
+# snp file as per the 23andMe standard (can be derived) from
+# the vcf with vcf2snp
+require 'csv'
+require 'securerandom'
+
+def hashify(snps)
+  CSV.read(snps, headers: true, header_converters: :symbol, col_sep: "\t")
+    .map { |row| [row[:rsid], row[:genotype]] }
+    .to_h
+end
+
+def swpsnp(p1, p2)
+  p1.merge(p2) do |_, v1, v2|
+    if v1 && v2
+      v1[rand(0..1)] + v2[rand(0..1)]
+    elsif v1 && !v2
+      v1
+    elsif !v1 && v2
+      v2
+    end
+  end
+end
+
+parent1 = hashify(ARGV[0])
+parent2 = hashify(ARGV[1])
+
+synthbling = swpsnp(parent1, parent2)
+
+CSV.open("./synthbling_#{SecureRandom.uuid}", 'w') do |csv|
+  csv << ['rsid', 'genotype']
+  synthbling.each do |row|
+    csv << row
+  end
+end
