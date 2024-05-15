@@ -61,6 +61,16 @@ def crossovers(length)
   Array.new(rand(0..4)).map { rand(length) }
 end
 
+def sets(h1 = {}, h2 = {})
+  k1 = h1.keys.to_set
+  k2 = h2.keys.to_set
+ 
+  overlap = k1 & k2
+  disjoint = k1 ^ k2 
+
+  return overlap, disjoint
+end
+
 readsnp = proc do |path = ''|
   CSV.read(path, headers: true, header_converters: :symbol, col_sep: "\t")
     .map { |row| row.to_h }
@@ -89,7 +99,7 @@ gender = proc do |daughter = true, snps = []|
 end
 
 hashify = proc do |snps = []|
-  snps.map { |snp| [snp[:rsid], snp] }.to_h
+  snps.map { |snp| [snp[:rsid], snp] }.to_h.except('.')
 end
 
 # uncertain if the disjoints should send both -- since
@@ -97,11 +107,7 @@ end
 # correctly, the opposite needs to pull from the reference
 # seq Hg38 chromosome and position
 swpsnp = proc do |p1 = {}, p2 = {}|
-  k1 = p1.keys.to_set
-  k2 = p2.keys.to_set
-
-  overlap = k1 & k2
-  disjoint = k1 ^ k2
+  overlap, disjoint = sets(p1, p2)
 
   sorted = p1.slice(*overlap)
     .merge(p2.slice(*overlap)) do |k, v1, v2|
@@ -113,8 +119,10 @@ swpsnp = proc do |p1 = {}, p2 = {}|
       }
     end
 
-    p1.slice(*disjoint) # compare with ref, reject if same
-    p2.slice(*disjoint) # if different, pair w/ ref as genotype
+  # have the full reference rsid list -- do the same merge
+  # if they are homozygous, reject
+  p1.slice(*disjoint) # compare with ref, reject if same
+  p2.slice(*disjoint) # if different, pair w/ ref as genotype
 
   #(overlapped_snps | unique_snps).to_h
 end
@@ -127,20 +135,6 @@ writebling = proc do |synthbling|
     end
   end
 end
-
-# def swpsnp(p1, p2)
-#   p1.merge(p2) do |k, v1, v2|
-#     if v1 && v2
-#       v1[flip] + v2[flip]
-#     elsif v1 && !v2
-#       if rand(0..1) == 0 then v1 else next end
-#     elsif !v1 && v2
-#       if rand(0..1) == 0 then v2 else next end
-#     elsif k == '.'
-#       next
-#     end
-#   end.compact
-# end
 
 [ARGV[0], ARGV[1]]
   .map(&readsnp)
