@@ -29,7 +29,7 @@ parent2 = hashify(ARGV[1])
 
 synthbling = swpsnp(parent1, parent2)
 
-CSV.open("./synthbling_#{SecureRandom.uuid}", 'w') do |csv|
+CSV.open("./synthbling_#{SecureRandom.uuid}", 'w', col_sep: "\t") do |csv|
   csv << ['rsid', 'genotype']
   synthbling.each do |row|
     csv << row
