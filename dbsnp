@@ -1,0 +1,13 @@
+#!/Users/kamal/.asdf/shims/ruby
+
+require 'csv'
+
+filename = ARGV[0]
+
+IO.popen("zless #{filename}", "r") do |pipe|
+  pipe.each do |line|
+    next if line =~ /^#/
+    id, ref = line.split("\t").values_at(*[2, 3])
+    puts id, ref
+  end
+end

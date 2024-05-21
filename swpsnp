@@ -1,8 +1,16 @@
-#!/usr/bin/ruby
+#!/Users/kamal/.asdf/shims/ruby
 
 # This script will create synthetic siblings from a formatted
 # snp file as per the 23andMe standard (can be derived) from
 # the vcf with vcf2snp
+require 'bundler/inline'
+
+gemfile do
+  source "https://rubygems.org"
+  gem 'concurrent-ruby', '~> 1.2', '>= 1.2.3'
+  gem 'ruby-statistics', '~> 2.0', '>= 2.0.2'
+end
+
 require 'csv'
 require 'securerandom'
 
@@ -58,6 +66,8 @@ end
 # sure if it's worth it.  Probably also conditional by descent.
 def crossovers(length)
   # zero means no swap over between parental chromosomes
+  # should be a normal distribution from 0 to 6 (centered on 3)
+  # unclear if it's bimodal for 2 and 4.  What's the actual shape?
   Array.new(rand(0..4)).map { rand(length) }
 end
 
@@ -112,12 +122,7 @@ swpsnp = proc do |p1 = {}, p2 = {}|
 
   sorted = p1.slice(*overlap)
     .merge(p2.slice(*overlap)) do |k, v1, v2|
-      {
-        rsid: v1[:rsid],
-        chromosome: v1[:chromosome],
-        position: v1[:position],
-        genotype: v1[:allele] + v2[:allele]
-      }
+      v1.except(:genotype).merge(genotype: v1[:allele] + v2[:allele])
     end
 
   # have the full reference rsid list -- do the same merge
