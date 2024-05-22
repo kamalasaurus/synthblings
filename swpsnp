@@ -3,6 +3,8 @@
 # This script will create synthetic siblings from a formatted
 # snp file as per the 23andMe standard (can be derived) from
 # the vcf with vcf2snp
+require 'csv'
+require 'securerandom'
 require 'bundler/inline'
 
 gemfile do
@@ -10,9 +12,6 @@ gemfile do
   gem 'concurrent-ruby', '~> 1.2', '>= 1.2.3'
   gem 'ruby-statistics', '~> 2.0', '>= 2.0.2'
 end
-
-require 'csv'
-require 'securerandom'
 
 # 45 - 250 million appears to be the size range of human
 # chromosomes

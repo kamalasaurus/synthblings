@@ -1,13 +1,22 @@
 #!/Users/kamal/.asdf/shims/ruby
 
 require 'csv'
+require 'bundler/inline'
 
-filename = ARGV[0]
+gemfile do
+  source "https://rubygems.org"
+  gem 'lmdb', '~> 0.6.2'
+end
 
-IO.popen("zless #{filename}", "r") do |pipe|
-  pipe.each do |line|
-    next if line =~ /^#/
-    id, ref = line.split("\t").values_at(*[2, 3])
-    puts id, ref
+LMDB.new("./database") do |env|
+  db = env.database
+
+  IO.popen("zless #{ARGV[0]}", "r") do |pipe|
+    pipe.each do |line|
+      next if line =~ /^#/
+      id, ref = line.split("\t").values_at(*[2, 3])
+      env.transaction { db[id] = ref }
+      env.transaction { puts id, db[id] }
+    end
   end
 end
