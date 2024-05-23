@@ -10,7 +10,7 @@ end
 
 TOTAL_LINES = 660_146_231.0
 
-LMDB.new("./database") do |env|
+LMDB.new("./database", mapsize: 10 * 1024 * 1024) do |env|
   db = env.database
 
   IO.popen("zless #{ARGV[0]}", "r") do |pipe|
