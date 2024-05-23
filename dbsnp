@@ -10,7 +10,9 @@ end
 
 TOTAL_LINES = 660_146_231.0
 
-LMDB.new("./database", mapsize: 10 * 1024 * 1024) do |env|
+# 1 TB map size -- this is the maximum db size.  Generally
+# set this to max available space.  DB should be << 112GB
+LMDB.new("./database", mapsize: 1 * 1024 ** 4) do |env|
   db = env.database
 
   IO.popen("zless #{ARGV[0]}", "r") do |pipe|
