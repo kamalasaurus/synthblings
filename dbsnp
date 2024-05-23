@@ -1,6 +1,5 @@
 #!/Users/kamal/.asdf/shims/ruby
 
-require 'csv'
 require 'bundler/inline'
 
 gemfile do

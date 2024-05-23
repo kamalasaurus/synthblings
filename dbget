@@ -1,0 +1,16 @@
+#!/Users/kamal/.asdf/shims/ruby
+
+require 'bundler/inline'
+
+gemfile do
+  source "https://rubygems.org"
+  gem 'lmdb', '~> 0.6.2'
+end
+
+LMDB.new("./database") do |env|
+  db = env.database
+
+  id = 'some id'
+  env.transaction { puts id, db[id]}
+
+end
