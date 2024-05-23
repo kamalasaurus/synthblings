@@ -1,5 +1,3 @@
-#!/Users/kamal/.asdf/shims/ruby
-
 require 'bundler/inline'
 
 gemfile do
