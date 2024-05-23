@@ -8,15 +8,17 @@ gemfile do
   gem 'lmdb', '~> 0.6.2'
 end
 
+TOTAL_LINES = 660_146_231.0
+
 LMDB.new("./database") do |env|
   db = env.database
 
   IO.popen("zless #{ARGV[0]}", "r") do |pipe|
-    pipe.each do |line|
+    pipe.each.with_index do |line, i|
       next if line =~ /^#/
       id, ref = line.split("\t").values_at(*[2, 3])
       env.transaction { db[id] = ref }
-      env.transaction { puts id, db[id] }
+      print "\rProgress: #{100 * i / TOTAL_LINES}%..."
     end
   end
 end
